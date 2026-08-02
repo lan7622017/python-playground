@@ -1,0 +1,21 @@
+# 依赖
+node_modules/
+dist/
+build/
+
+# 数据库
+*.db
+*.db-journal
+
+# 环境变量
+.env
+.env.local
+
+# 日志
+*.log
+npm-debug.log*
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
