@@ -17,7 +17,7 @@
 | 系统 | Ubuntu 22.04.5 LTS（glibc 2.35）|
 | 登录用户 | ubuntu（sudo 免密）|
 | 登录方式 | **SSH 密钥**（密码认证不可用/被拒）|
-| 私钥位置 | 本机 `.deploy-tmp/deploy_key`（已 gitignore，换电脑需手动拷贝整个 `.deploy-tmp` 目录）|
+| 私钥位置 | 项目根目录 `.deploy-tmp/deploy_key`（已 gitignore，换电脑只需把这一个文件放进同样的位置）|
 
 ## 3. 服务器架构
 
@@ -40,11 +40,13 @@ graph LR
 
 ## 4. 如何更新线上代码（一键部署）
 
-在本机执行：
+在项目根目录执行：
 
 ```powershell
-python "d:\计算机学习\python-playground\.deploy-tmp\redeploy.py"
+python deploy/redeploy.py
 ```
+
+脚本路径自动识别，可在任意电脑上运行。
 
 脚本流程（约 1 分钟）：
 1. 本地打包（排除 node_modules、dist、.git、.deploy-tmp、playground.db）
@@ -54,7 +56,9 @@ python "d:\计算机学习\python-playground\.deploy-tmp\redeploy.py"
 5. `chmod a+rX` 修复 dist 权限（Nginx www-data 需要读权限，否则 500）
 6. `pm2 restart` + 验证 80/3000 端口
 
-前置条件：本机 Python 已装 paramiko（`pip install paramiko`）。
+前置条件：
+1. 本机 Python 已装 paramiko（`pip install paramiko`）
+2. 项目根目录下存在 `.deploy-tmp/deploy_key` 私钥文件（微信/U盘传递，切勿进 Git）
 
 ## 5. 关键坑点（必读）
 
@@ -65,7 +69,7 @@ python "d:\计算机学习\python-playground\.deploy-tmp\redeploy.py"
 2. **本地 npm 有 allow-scripts 安全策略**：新电脑首次 `npm install` 后若 sqlite3 报错，执行 `npm approve-scripts sqlite3`（及 @nestjs/core、esbuild）
 3. **Nginx 500**：如果 `/home/ubuntu` 权限被改回 700，www-data 读不到 dist，需要 `chmod 755 /home/ubuntu`
 4. **防火墙**：腾讯云轻量防火墙需放行 80（已默认放行）；如改端口记得在控制台防火墙加规则
-5. **部署临时目录 `.deploy-tmp/`**：含 SSH 私钥和部署脚本，已 gitignore，不会也不应进入 Git
+5. **部署私钥**：`.deploy-tmp/deploy_key` 已 gitignore，不会也不应进入 Git；部署脚本已随仓库分发（`deploy/redeploy.py`）
 
 ## 6. 服务器常用运维命令（SSH 登录后）
 
