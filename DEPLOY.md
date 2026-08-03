@@ -82,13 +82,44 @@ sudo tail /var/log/nginx/error.log          # nginx 错误日志
 cd /home/ubuntu/python-playground/backend && npx ts-node src/seed/run-seed.ts  # 重新 seed 关卡
 ```
 
-## 7. 本地开发（新电脑环境搭建）
+## 7. 新电脑接入清单（换电脑时照这个做）
+
+### 首次克隆（新电脑从未拉过代码）
 
 ```powershell
 git clone https://github.com/lan7622017/python-playground.git
 cd python-playground
-npm install                 # 若 sqlite3 报错：npm approve-scripts sqlite3 后重装
-npm run dev                 # 后端 :3000 + 前端 :5173（Vite 代理 /api）
+```
+
+### 已有克隆（只需拉取最新）
+
+```powershell
+cd python-playground
+git pull
+```
+
+### 环境搭建清单（按顺序执行）
+
+| 步骤 | 操作 | 说明 |
+|---|---|---|
+| 1 | 项目根目录新建 `.deploy-tmp` 文件夹，把 SSH 私钥存为 `deploy_key`（无后缀）| 私钥不进 Git，需微信/U盘传递；只需这一个文件 |
+| 2 | `pip install paramiko` | 部署脚本运行依赖 |
+| 3 | `npm install` | 若 sqlite3 报错：`npm approve-scripts sqlite3` 后重装 |
+| 4 | `npm run dev` | 本地开发：后端 :3000 + 前端 :5173（Vite 代理 /api）|
+
+### 日常节奏（铁律）
+
+```powershell
+# 开始写之前（拿到另一台电脑的最新代码）
+git pull
+
+# 写完之后
+git add -A
+git commit -m "描述改了什么"
+git push
+
+# 改完想上线（自动上传/构建/重启，约 1 分钟，不碰数据库）
+python deploy/redeploy.py
 ```
 
 - 本地数据库：`backend/playground.db`（gitignore，各电脑独立，不互相同步）
