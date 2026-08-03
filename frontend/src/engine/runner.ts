@@ -5,6 +5,9 @@ import type { SubmitResult } from 'python-playground-shared';
 /** 单次执行超时（毫秒）：超时强制终止 Worker，防止死循环卡死页面 */
 const RUN_TIMEOUT = 3000;
 
+/** 引擎加载超时（毫秒）：CDN 挂起/过慢时终止 Worker 并报错，避免无限转圈 */
+const ENGINE_LOAD_TIMEOUT = 60000;
+
 /** 输出内容上限（字符）：防止 print 刷屏 */
 const MAX_OUTPUT_LENGTH = 2000;
 
@@ -51,34 +54,65 @@ export const engine = new (class PyodideRunner {
 
   /** 创建 Worker（classic worker，不走打包器模块转换） */
   private createWorker(): Worker {
-    const worker = new Worker(new URL('./pyodide.worker.ts', import.meta.url));
-    worker.onerror = (e) => {
-      this.setStatus({ state: 'error', message: `执行引擎出错：${e.message}` });
-    };
-    return worker;
+    return new Worker(new URL('./pyodide.worker.ts', import.meta.url));
   }
 
-  /** 预加载 Pyodide（页面空闲时调用；幂等） */
+  /** 预加载 Pyodide（页面空闲时调用；幂等，失败可重试） */
   preload(): Promise<void> {
     if (this.loadingPromise) return this.loadingPromise;
     if (this.worker) return Promise.resolve();
     this.setStatus({ state: 'loading' });
-    this.loadingPromise = new Promise<void>((resolve, reject) => {
+    const loading = new Promise<void>((resolve, reject) => {
       const worker = this.createWorker();
       this.worker = worker;
+      let settled = false;
+
+      // 加载超时保护：引擎下载挂起时终止 Worker 并报错，避免 UI 无限转圈
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.terminateWorker();
+        this.setStatus({
+          state: 'error',
+          message: `引擎加载超时（${ENGINE_LOAD_TIMEOUT / 1000} 秒），请检查网络后刷新重试`,
+        });
+        reject(new Error(`引擎加载超时（${ENGINE_LOAD_TIMEOUT / 1000} 秒）`));
+      }, ENGINE_LOAD_TIMEOUT);
+
+      // Worker 脚本加载失败（404/语法错误等）
+      worker.onerror = (e) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.terminateWorker();
+        this.setStatus({ state: 'error', message: `执行引擎出错：${e.message}` });
+        reject(new Error(e.message));
+      };
+
       worker.onmessage = (e) => {
         const msg = e.data;
         if (msg.type === 'loaded') {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
           this.setStatus({ state: 'ready' });
           resolve();
         } else if (msg.type === 'error') {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          this.terminateWorker();
           this.setStatus({ state: 'error', message: msg.error });
           reject(new Error(msg.error));
         }
       };
       worker.postMessage({ type: 'load' });
+    }).finally(() => {
+      // 无论成败都允许下次重新加载（成功时 worker 已存在，直接走 ready 分支）
+      this.loadingPromise = null;
     });
-    return this.loadingPromise;
+    this.loadingPromise = loading;
+    return loading;
   }
 
   /** 执行代码（拼接测试代码由调用方完成），返回判定结果 */
