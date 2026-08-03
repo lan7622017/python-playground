@@ -19,3 +19,8 @@ npm-debug.log*
 .vscode/
 .idea/
 .DS_Store
+
+# 部署临时文件（含 SSH 私钥，禁止上传）
+.deploy-tmp/
+.vercel-tmp/
+acceptance-screenshots/
